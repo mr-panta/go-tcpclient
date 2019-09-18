@@ -1,8 +1,8 @@
 package tcpclient
 
 import (
+	"encoding/binary"
 	"errors"
-	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -84,11 +84,27 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	defer func() {
 		c.connPool <- conn
 	}()
+	// send data length
+	dataSize := make([]byte, 4)
+	binary.LittleEndian.PutUint32(dataSize, uint32(len(input)))
+	_, err = conn.tcpConn.Write(dataSize)
+	if err != nil {
+		return nil, err
+	}
+	// send data
 	_, err = conn.tcpConn.Write(input)
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(conn.tcpConn)
+	// receive data length
+	_, err = conn.tcpConn.Read(dataSize)
+	if err != nil {
+		return nil, err
+	}
+	// receive data
+	output = make([]byte, binary.LittleEndian.Uint32(dataSize))
+	_, err = conn.tcpConn.Read(output)
+	return output, err
 }
 
 // Close is used to close all connections in connection pool
