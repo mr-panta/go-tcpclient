@@ -37,7 +37,7 @@ type connection struct {
 // NewClient is used to create TCP client.
 // `addr` is TCP host address.
 // `minConns` is the minimum number of connections in connection pool.
-// `maxConns` is the maximum number of connections in connection pool.
+// `maxConns` is the capacity of connection pool.
 // `idleConnTimeout` is the duration that allows connection to stay idle.
 // `waitConnTimeout` is the duration that allows connection pool to stay empty,
 // otherwise new connection will be created.
