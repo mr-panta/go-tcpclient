@@ -11,6 +11,8 @@ import (
 // Client contains TCP connection pool and provides
 // APIs for communicating via TCP connection
 type Client interface {
+	// GetHostAddr is used to get address of TCP host
+	GetHostAddr() (hostAddr string)
 	// Send is used to send and get TCP data via TCP connection
 	Send(input []byte) (output []byte, err error)
 	// Close is used to close all connections in connection pool
@@ -19,7 +21,7 @@ type Client interface {
 
 type defaultClient struct {
 	status          bool
-	addr            string
+	hostAddr        string
 	minConns        int
 	maxConns        int
 	idleConnTimeout time.Duration
@@ -36,19 +38,19 @@ type connection struct {
 }
 
 // NewClient is used to create TCP client.
-// `addr` is TCP host address.
+// `hostAddr` is TCP host address.
 // `minConns` is the minimum number of connections in connection pool.
 // `maxConns` is the capacity of connection pool.
 // `idleConnTimeout` is the duration that allows connection to stay idle.
 // `waitConnTimeout` is the duration that allows connection pool to stay empty,
 // otherwise new connection will be created.
 // The connection pool manager will clear idle connections every `clearPeriod` duration.
-func NewClient(addr string, minConns, maxConns int, idleConnTimeout, waitConnTimeout,
+func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitConnTimeout,
 	clearPeriod time.Duration) (client Client, err error) {
 
 	c := &defaultClient{
 		status:          true,
-		addr:            addr,
+		hostAddr:        hostAddr,
 		minConns:        minConns,
 		maxConns:        maxConns,
 		idleConnTimeout: idleConnTimeout,
@@ -66,6 +68,11 @@ func NewClient(addr string, minConns, maxConns int, idleConnTimeout, waitConnTim
 	}
 	go c.poolManager()
 	return c, nil
+}
+
+// GetHostAddr is used to get address of TCP host
+func (c *defaultClient) GetHostAddr() (hostAddr string) {
+	return c.hostAddr
 }
 
 // Send is used to send and get TCP data via TCP connection
