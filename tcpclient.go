@@ -135,7 +135,7 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 		return nil, errors.New("connection pool is full")
 	}
 	c.poolSize++
-	tcpConn, err := net.Dial("tcp", c.addr)
+	tcpConn, err := net.Dial("tcp", c.hostAddr)
 	if err != nil {
 		return nil, err
 	}
