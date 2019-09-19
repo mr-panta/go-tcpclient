@@ -32,7 +32,7 @@ func Reader(conn net.Conn, process func(input []byte) ([]byte, error)) (err erro
 		return err
 	}
 	// send data
-	_, err = conn.Write(input)
+	_, err = conn.Write(output)
 	if err != nil {
 		return err
 	}
