@@ -9,13 +9,13 @@ import (
 )
 
 // Client contains TCP connection pool and provides
-// APIs for communicating via TCP connection
+// APIs for communicating via TCP connection.
 type Client interface {
-	// GetHostAddr is used to get address of TCP host
+	// GetHostAddr is used to get address of TCP host.
 	GetHostAddr() (hostAddr string)
-	// Send is used to send and get TCP data via TCP connection
+	// Send is used to send and get TCP data via TCP connection.
 	Send(input []byte) (output []byte, err error)
-	// Close is used to close all connections in connection pool
+	// Close is used to close all connections in connection pool.
 	Close() (err error)
 }
 
@@ -70,12 +70,12 @@ func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitCon
 	return c, nil
 }
 
-// GetHostAddr is used to get address of TCP host
+// GetHostAddr is used to get address of TCP host.
 func (c *defaultClient) GetHostAddr() (hostAddr string) {
 	return c.hostAddr
 }
 
-// Send is used to send and get TCP data via TCP connection
+// Send is used to send and get TCP data via TCP connection.
 func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	if !c.status {
 		return nil, errors.New("all connections in connection pool are already closed")
@@ -116,7 +116,7 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	return output, err
 }
 
-// Close is used to close all connections in connection pool
+// Close is used to close all connections in connection pool.
 func (c *defaultClient) Close() (err error) {
 	for empty := false; !empty; {
 		empty, err = c.drainConnPool(nil, true)
