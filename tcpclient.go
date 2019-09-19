@@ -145,7 +145,7 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 
 func (c *defaultClient) poolManager() {
 	for {
-		if c.poolSize == 0 {
+		if !c.status {
 			return
 		}
 		conn := <-c.connPool
