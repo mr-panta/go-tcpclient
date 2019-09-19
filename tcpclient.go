@@ -18,6 +18,7 @@ type Client interface {
 }
 
 type defaultClient struct {
+	status          bool
 	addr            string
 	minConns        int
 	maxConns        int
@@ -46,6 +47,7 @@ func NewClient(addr string, minConns, maxConns int, idleConnTimeout, waitConnTim
 	clearPeriod time.Duration) (client Client, err error) {
 
 	c := &defaultClient{
+		status:          true,
 		addr:            addr,
 		minConns:        minConns,
 		maxConns:        maxConns,
@@ -68,7 +70,7 @@ func NewClient(addr string, minConns, maxConns int, idleConnTimeout, waitConnTim
 
 // Send is used to send and get TCP data via TCP connection
 func (c *defaultClient) Send(input []byte) (output []byte, err error) {
-	if c.poolSize == 0 {
+	if !c.status {
 		return nil, errors.New("all connections in connection pool are already closed")
 	}
 	conn := &connection{}
@@ -115,6 +117,7 @@ func (c *defaultClient) Close() (err error) {
 			return err
 		}
 	}
+	c.status = false
 	return nil
 }
 
