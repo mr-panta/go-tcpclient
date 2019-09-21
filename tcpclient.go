@@ -30,6 +30,8 @@ type defaultClient struct {
 	poolSize        int
 	poolLock        sync.Mutex
 	connPool        chan *connection
+	initDelay       time.Duration
+	maxRetry        int
 }
 
 type connection struct {
@@ -59,6 +61,8 @@ func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitCon
 		poolSize:        0,
 		poolLock:        sync.Mutex{},
 		connPool:        make(chan *connection, maxConns),
+		initDelay:       time.Millisecond * 10,
+		maxRetry:        4,
 	}
 	for i := 0; i < c.minConns; i++ {
 		if _, err = c.fillConnPool(false); err != nil {
@@ -93,6 +97,40 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	defer func() {
 		c.connPool <- conn
 	}()
+	retry(
+		c.initDelay,
+		c.maxRetry,
+		func() {
+			output, err = c.sendAndReceive(conn, input)
+		},
+		func() bool {
+			if err != nil {
+				_, err = c.drainConnPool(conn, true)
+				if err != nil {
+					return true
+				}
+				conn, err = c.fillConnPool(true)
+				return true
+			}
+			return false
+		},
+	)
+	return output, err
+}
+
+// Close is used to close all connections in connection pool.
+func (c *defaultClient) Close() (err error) {
+	for empty := false; !empty; {
+		empty, err = c.drainConnPool(nil, true)
+		if err != nil {
+			return err
+		}
+	}
+	c.status = false
+	return nil
+}
+
+func (c *defaultClient) sendAndReceive(conn *connection, input []byte) (output []byte, err error) {
 	// send data length
 	dataSize := make([]byte, 4)
 	binary.LittleEndian.PutUint32(dataSize, uint32(len(input)))
@@ -114,18 +152,6 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	output = make([]byte, binary.LittleEndian.Uint32(dataSize))
 	_, err = conn.tcpConn.Read(output)
 	return output, err
-}
-
-// Close is used to close all connections in connection pool.
-func (c *defaultClient) Close() (err error) {
-	for empty := false; !empty; {
-		empty, err = c.drainConnPool(nil, true)
-		if err != nil {
-			return err
-		}
-	}
-	c.status = false
-	return nil
 }
 
 func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error) {
@@ -190,4 +216,14 @@ func (c *defaultClient) drainConnPool(conn *connection, forceMode bool) (empty b
 	}
 	empty = c.poolSize == 0
 	return empty, nil
+}
+
+func retry(initDelay time.Duration, maxRetry int, processFn func(), retryCondFn func() bool) {
+	processFn()
+	delay := initDelay
+	for i := 0; i < maxRetry && retryCondFn(); i++ {
+		time.Sleep(delay)
+		delay *= 2
+		processFn()
+	}
 }
