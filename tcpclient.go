@@ -93,9 +93,14 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 			return nil, err
 		}
 	}
+	originConn := conn
 	conn.lastActive = time.Now()
 	defer func() {
-		c.connPool <- conn
+		if conn == nil && originConn != nil {
+			c.drainConnPool(originConn, true)
+		} else {
+			c.connPool <- conn
+		}
 	}()
 	retry(
 		c.initDelay,
@@ -109,6 +114,7 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 				if err != nil {
 					return true
 				}
+				originConn = nil
 				conn, err = c.fillConnPool(true)
 				return true
 			}
@@ -131,6 +137,9 @@ func (c *defaultClient) Close() (err error) {
 }
 
 func (c *defaultClient) sendAndReceive(conn *connection, input []byte) (output []byte, err error) {
+	if conn == nil {
+		return nil, errors.New("connection is empty")
+	}
 	// send data length
 	dataSize := make([]byte, 4)
 	binary.LittleEndian.PutUint32(dataSize, uint32(len(input)))
@@ -181,11 +190,14 @@ func (c *defaultClient) poolManager() {
 		if !c.status {
 			return
 		}
-		conn := <-c.connPool
-		if time.Since(conn.lastActive) > c.idleConnTimeout {
-			_, _ = c.drainConnPool(conn, false)
-		} else {
-			c.connPool <- conn
+		poolLength := len(c.connPool)
+		for i := 0; i < poolLength; i++ {
+			conn := <-c.connPool
+			if time.Since(conn.lastActive) > c.idleConnTimeout {
+				_, _ = c.drainConnPool(conn, false)
+			} else {
+				c.connPool <- conn
+			}
 		}
 		time.Sleep(c.clearPeriod)
 	}
