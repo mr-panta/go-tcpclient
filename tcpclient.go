@@ -126,7 +126,7 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 
 // Close is used to close all connections in connection pool.
 func (c *defaultClient) Close() (err error) {
-	for empty := false; !empty; {
+	for empty := false; !empty && c.poolSize > 0; {
 		conn := <-c.connPool
 		empty, err = c.drainConnPool(conn, true)
 		if err != nil {
@@ -170,7 +170,6 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 	if c.poolSize == c.maxConns {
 		return nil, errors.New("connection pool is full")
 	}
-	c.poolSize++
 	tcpConn, err := net.Dial("tcp", c.hostAddr)
 	if err != nil {
 		return nil, err
@@ -183,6 +182,7 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 		return conn, nil
 	}
 	c.connPool <- conn
+	c.poolSize++
 	return nil, nil
 }
 
