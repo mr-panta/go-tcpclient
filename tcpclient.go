@@ -96,7 +96,7 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 	originConn := conn
 	conn.lastActive = time.Now()
 	defer func() {
-		if conn == nil && originConn != nil {
+		if conn == nil {
 			c.drainConnPool(originConn, true)
 		} else {
 			c.connPool <- conn
@@ -127,7 +127,8 @@ func (c *defaultClient) Send(input []byte) (output []byte, err error) {
 // Close is used to close all connections in connection pool.
 func (c *defaultClient) Close() (err error) {
 	for empty := false; !empty; {
-		empty, err = c.drainConnPool(nil, true)
+		conn := <-c.connPool
+		empty, err = c.drainConnPool(conn, true)
 		if err != nil {
 			return err
 		}
@@ -209,9 +210,6 @@ func (c *defaultClient) drainConnPool(conn *connection, forceMode bool) (empty b
 	if c.poolSize == 0 {
 		return true, errors.New("connection pool is empty")
 	}
-	if conn == nil {
-		conn = <-c.connPool
-	}
 	defer func() {
 		if err != nil {
 			c.connPool <- conn
@@ -222,7 +220,9 @@ func (c *defaultClient) drainConnPool(conn *connection, forceMode bool) (empty b
 		return false, err
 	}
 	c.poolSize--
-	err = conn.tcpConn.Close()
+	if conn != nil {
+		err = conn.tcpConn.Close()
+	}
 	if err != nil {
 		return false, err
 	}
