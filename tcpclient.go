@@ -70,7 +70,7 @@ func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitCon
 			return client, err
 		}
 	}
-	go c.poolManager()
+	go c.startPoolManager()
 	return c, nil
 }
 
@@ -178,15 +178,15 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 		tcpConn:    tcpConn,
 		lastActive: time.Now(),
 	}
+	c.poolSize++
 	if getConn {
 		return conn, nil
 	}
 	c.connPool <- conn
-	c.poolSize++
 	return nil, nil
 }
 
-func (c *defaultClient) poolManager() {
+func (c *defaultClient) startPoolManager() {
 	for {
 		if !c.status {
 			return
