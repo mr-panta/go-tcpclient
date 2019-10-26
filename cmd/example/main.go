@@ -15,7 +15,7 @@ func main() {
 	genData(10000000)
 	go runHost()
 	time.Sleep(time.Second)
-	client, err := tcpclient.NewClient("127.0.0.1:3000", 1, 1, 100*time.Millisecond, 10*time.Millisecond, time.Second, time.Second)
+	client, err := tcpclient.NewClient("127.0.0.1:3000", 1, 1, 100*time.Millisecond, 10*time.Millisecond, time.Second)
 	if err != nil {
 		log.Fatal(err)
 	}

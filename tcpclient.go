@@ -29,7 +29,6 @@ type defaultClient struct {
 	idleConnTimeout time.Duration
 	waitConnTimeout time.Duration
 	clearPeriod     time.Duration
-	readTimeout     time.Duration
 	poolSize        int
 	poolCounter     uint64
 	poolLock        sync.Mutex
@@ -53,7 +52,7 @@ type connection struct {
 // otherwise new connection will be created.
 // The connection pool manager will clear idle connections every `clearPeriod` duration.
 func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitConnTimeout,
-	clearPeriod, readTimeout time.Duration) (client Client, err error) {
+	clearPeriod time.Duration) (client Client, err error) {
 
 	c := &defaultClient{
 		status:          true,
@@ -63,7 +62,6 @@ func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitCon
 		idleConnTimeout: idleConnTimeout,
 		waitConnTimeout: waitConnTimeout,
 		clearPeriod:     clearPeriod,
-		readTimeout:     readTimeout,
 		poolSize:        0,
 		poolLock:        sync.Mutex{},
 		connPool:        make(chan *connection, maxConns),
@@ -167,7 +165,6 @@ func (c *defaultClient) sendAndReceive(conn *connection, input []byte) (output [
 		}
 	}
 	// set read timeout
-	err = conn.tcpConn.SetReadDeadline(time.Now().Add(c.readTimeout))
 	if err != nil {
 		return nil, err
 	}
