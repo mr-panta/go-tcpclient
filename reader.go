@@ -15,9 +15,21 @@ func Reader(conn net.Conn, process func(input []byte) ([]byte, error)) (err erro
 	}
 	// receive data
 	input := make([]byte, binary.LittleEndian.Uint32(dataSize))
-	_, err = conn.Read(input)
-	if err != nil {
-		return err
+	for i := 0; i <= len(input)/limitMessageSize; i++ {
+		start := i * limitMessageSize
+		end := (i + 1) * limitMessageSize
+		if end > len(input) {
+			end = len(input)
+		}
+		_, err = conn.Read(input[start:end])
+		if err != nil {
+			return err
+		}
+	}
+	for i := range input {
+		if input[i] != byte(i%256) {
+			break
+		}
 	}
 	// process data
 	output, err := process(input)
@@ -32,9 +44,16 @@ func Reader(conn net.Conn, process func(input []byte) ([]byte, error)) (err erro
 		return err
 	}
 	// send data
-	_, err = conn.Write(output)
-	if err != nil {
-		return err
+	for i := 0; i <= len(output)/limitMessageSize; i++ {
+		start := i * limitMessageSize
+		end := (i + 1) * limitMessageSize
+		if end > len(output) {
+			end = len(output)
+		}
+		_, err = conn.Write(output[start:end])
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

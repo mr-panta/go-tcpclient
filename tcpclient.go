@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const limitMessageSize = 16384
+
 // Client contains TCP connection pool and provides
 // APIs for communicating via TCP connection.
 type Client interface {
@@ -27,7 +29,9 @@ type defaultClient struct {
 	idleConnTimeout time.Duration
 	waitConnTimeout time.Duration
 	clearPeriod     time.Duration
+	readTimeout     time.Duration
 	poolSize        int
+	poolCounter     uint64
 	poolLock        sync.Mutex
 	connPool        chan *connection
 	initDelay       time.Duration
@@ -35,6 +39,7 @@ type defaultClient struct {
 }
 
 type connection struct {
+	id         uint64
 	tcpConn    net.Conn
 	lastActive time.Time
 }
@@ -48,7 +53,7 @@ type connection struct {
 // otherwise new connection will be created.
 // The connection pool manager will clear idle connections every `clearPeriod` duration.
 func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitConnTimeout,
-	clearPeriod time.Duration) (client Client, err error) {
+	clearPeriod, readTimeout time.Duration) (client Client, err error) {
 
 	c := &defaultClient{
 		status:          true,
@@ -58,6 +63,7 @@ func NewClient(hostAddr string, minConns, maxConns int, idleConnTimeout, waitCon
 		idleConnTimeout: idleConnTimeout,
 		waitConnTimeout: waitConnTimeout,
 		clearPeriod:     clearPeriod,
+		readTimeout:     readTimeout,
 		poolSize:        0,
 		poolLock:        sync.Mutex{},
 		connPool:        make(chan *connection, maxConns),
@@ -149,7 +155,19 @@ func (c *defaultClient) sendAndReceive(conn *connection, input []byte) (output [
 		return nil, err
 	}
 	// send data
-	_, err = conn.tcpConn.Write(input)
+	for i := 0; i <= len(input)/limitMessageSize; i++ {
+		start := i * limitMessageSize
+		end := (i + 1) * limitMessageSize
+		if end > len(input) {
+			end = len(input)
+		}
+		_, err = conn.tcpConn.Write(input[start:end])
+		if err != nil {
+			return nil, err
+		}
+	}
+	// set read timeout
+	err = conn.tcpConn.SetReadDeadline(time.Now().Add(c.readTimeout))
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +178,17 @@ func (c *defaultClient) sendAndReceive(conn *connection, input []byte) (output [
 	}
 	// receive data
 	output = make([]byte, binary.LittleEndian.Uint32(dataSize))
-	_, err = conn.tcpConn.Read(output)
+	for i := 0; i <= len(output)/limitMessageSize; i++ {
+		start := i * limitMessageSize
+		end := (i + 1) * limitMessageSize
+		if end > len(output) {
+			end = len(output)
+		}
+		_, err = conn.tcpConn.Read(output[start:end])
+		if err != nil {
+			return nil, err
+		}
+	}
 	return output, err
 }
 
@@ -174,7 +202,9 @@ func (c *defaultClient) fillConnPool(getConn bool) (conn *connection, err error)
 	if err != nil {
 		return nil, err
 	}
+	c.poolCounter++
 	conn = &connection{
+		id:         c.poolCounter,
 		tcpConn:    tcpConn,
 		lastActive: time.Now(),
 	}
